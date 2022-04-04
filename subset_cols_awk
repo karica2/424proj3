@@ -1,0 +1,1 @@
+awk 'BEGIN {FS = "\t"}; { print $3 "\t" $5 "\t" $6 "\t" $9"\t" $10 "\t" $17 }' Taxi_Trips_-_2019.tsv > taxi_subsetted.tsv
