@@ -24,8 +24,6 @@ zeta$day <- strtoi(substr(zeta$date, 4, 5))
 
 # zeta$weekday <- wday(paste("2019/", zeta$date))
 
-
-
 end = proc.time() - start
 print(end)
 
@@ -40,12 +38,23 @@ ggplot(data=count(zeta$date), aes(x = x, y=freq)) + geom_bar(stat="identity", fi
 monthNums <- seq(1, 12)
 months <- month.abb[monthNums]
 
+weekdayNums <- seq(1, 7)
+weekdayNums <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
 # by month
 ggplot(data=count(zeta$month), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Monthly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Months", limits = months) + labs(x="Month", y = "Rides")
 
 # by hour
 ggplot(data=count(zeta$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour)) + labs(x="Hour", y = "Rides")
 
-# make binned graphs for mileage and minutes spent (need to make minutes spent col in zeta)
+ggplot(data=count(zeta$weekday), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Weekly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = weekdayNums) + labs(x="Hour", y = "Rides")
 
+
+# make binned graphs for mileage and minutes spent (need to make minutes spent col in zeta)
+# this histogram works, but is not great at all. 
+ggplot(data=zeta, aes(zeta$miles)) + geom_histogram(bins = 6, binwidth = 2,  fill="#098CF9") + ggtitle("Binned Mileage of Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete(limits = c(0, 5, 10, 15, 20, 25)) + labs(x="Miles traveled", y = "Number of Rides")
+
+zeta$minutes <- round(zeta$seconds / 60)
+# change limits of this X axis
+ggplot(data=zeta, aes(zeta$minutes)) + geom_histogram(bins = 6, binwidth = 2,  fill="#098CF9") + ggtitle("Binned Length of Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete(limits = c(0, 5, 10, 15, 20, 25)) + labs(x="Minutes elapsed", y = "Number of Rides") + scale_x_continuous()
 

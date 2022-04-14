@@ -10,11 +10,11 @@ data <- read.table(file="taxi_trimmed_tsv.tsv", sep = "\t", header = TRUE, row.n
 
 colnames(data) <- c("seconds", "miles", "pickup", "dropoff", "company", "timestamp")
 
-data <- subset(data, data$seconds > 60)
-data <- subset(data, data$seconds < 18000)
-data <- subset(data, data$miles < 100)
-data <- subset(data, data$miles > .5)
-data <- na.omit(data)
+# data <- subset(data, data$seconds > 60)
+# data <- subset(data, data$seconds < 18000)
+# data <- subset(data, data$miles < 100)
+# data <- subset(data, data$miles > .5)
+# data <- na.omit(data)
 
 # make our table to reference taxi companies to numbers
 taxi_companies <- as.data.frame(unique(data$company))
@@ -27,8 +27,13 @@ data$company_num <- match(data$company, taxi_companies$company)
 data$company <- NULL
 
 # since we don't care about the minute on the hour, or the fact that it's in 2019. we sub out any pattern in our timestamp and replace it. 
-data$date <- gsub("/2019", "", gsub(":..", "", data$date))
 data$start_timestamp <- NULL
+
+d <- substr(data$timestamp, 2, 6)
+d_full_date <- paste("2019/", d, sep = "")
+all_weekdays <- ymd(d_full_date)
+all_weekdays_numeric <- wday(all_weekdays)
+data$weekday <- all_weekdays_numeric
 
 # make sure not to include rownames when we save the table because they take a ton of space
 write.table(data, sep = "\t", file = "taxi_trimmed_tsv.tsv", row.names = FALSE)
