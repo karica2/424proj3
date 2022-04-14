@@ -8,7 +8,7 @@ library(data.table)
 
 data <- read.table(file="taxi_trimmed_tsv.tsv", sep = "\t", header = TRUE, row.names =NULL, quote = "", check.names = FALSE)
 
-colnames(data) <- c("start_timestamp", "seconds", "miles", "pickup_area", "dropoff_area", "company" )
+colnames(data) <- c("seconds", "miles", "pickup", "dropoff", "company", "timestamp")
 
 data <- subset(data, data$seconds > 60)
 data <- subset(data, data$seconds < 18000)
@@ -46,7 +46,7 @@ for(x in 1:number_of_chunks) {
   print(upperbound)
   current_chunk <- data[lowerbound:upperbound, ]
   num_rows <- num_rows + nrow(current_chunk)
-  write.csv(current_chunk, file = paste("datachunks/", "chunk", x, ".csv", sep = ""), row.names = FALSE)
+  write.csv(current_chunk, file = paste("datachunks/", "chunk", x, ".csv", sep = ""), row.names = FALSE, quote = FALSE)
 }
 
 
