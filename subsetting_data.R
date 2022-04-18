@@ -6,15 +6,17 @@ library(plyr)
 library(data.table)
 # foreword: the awk script I used to re-generate a new file using only our 6 columns is in the directory as subset_cols_awk.
 
-data <- read.table(file="taxi_trimmed_tsv.tsv", sep = "\t", header = TRUE, row.names =NULL, quote = "", check.names = FALSE)
+data <- read.table(file="taxi_subsetted.tsv", sep = "\t", header = TRUE, row.names =NULL, quote = "", check.names = FALSE)
 
-colnames(data) <- c("seconds", "miles", "pickup", "dropoff", "company", "timestamp")
+# colnames(data) <- c("seconds", "miles", "pickup", "dropoff", "company", "timestamp")
+colnames(data) <- c("timestamp", "seconds", "miles", "pickup", "dropoff", "company")
 
-# data <- subset(data, data$seconds > 60)
-# data <- subset(data, data$seconds < 18000)
-# data <- subset(data, data$miles < 100)
-# data <- subset(data, data$miles > .5)
-# data <- na.omit(data)
+
+data <- subset(data, data$seconds > 60)
+data <- subset(data, data$seconds < 18000)
+data <- subset(data, data$miles < 100)
+data <- subset(data, data$miles > .5)
+data <- na.omit(data)
 
 # make our table to reference taxi companies to numbers
 taxi_companies <- as.data.frame(unique(data$company))
@@ -54,14 +56,9 @@ for(x in 1:number_of_chunks) {
   write.csv(current_chunk, file = paste("datachunks/", "chunk", x, ".csv", sep = ""), row.names = FALSE, quote = FALSE)
 }
 
-
-
-start = proc.time()
-files = list.files("datachunks/", ".csv", full.names = TRUE)
-freadCall3 <- do.call(rbind, lapply(files, function(x) {
-    fread(file = x, sep = ",", header = TRUE)
-}
-)
-)
-end = proc.time() - start
-
+community <- read.csv("CommAreas.csv")
+communities <- as.data.frame(community$COMMUNITY)
+communities$code <- community$AREA_NUMBE
+colnames(communities) <- c("name", "code")
+communities <- communities[order(communities$name), ]
+write.csv(communities, "communities.csv", row.names = FALSE, quote = FALSE)
