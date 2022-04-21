@@ -22,7 +22,21 @@ zeta <- do.call(rbind, lapply(files, function(x) {
   fread(file = x, sep = ",", header = TRUE, quote = FALSE) }))
 end = proc.time() - start
 
+
 comm_areas <- rgdal::readOGR("bound.geojson")
+# kevin local code line
+#comm_areas <- rgdal::readOGR("Boundaries - Community Areas (current).geojson") 
+comm_areas$testData <- as.integer(comm_areas$area_num_1)
+
+bins <- c(0, 10, 20, 30, 40, 50, 60, 70, Inf)
+pal <- colorBin("YlOrRd", domain = comm_areas$testData, bins = bins)
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>%s",
+  comm_areas$area_num_1, comm_areas$community
+) %>% lapply(htmltools::HTML)
+
+
 
 date_breaks <- unique(zeta$date)[1:365*14]
 date_breaks <- date_breaks[!is.na(date_breaks)]
@@ -282,15 +296,29 @@ server <- function(input, output, session) {
     leaflet(comm_areas) %>%
       addTiles() %>%
       addPolygons(stroke = TRUE,
-                  fillOpacity = 0.1,
-                  smoothFactor = 0.5,
+                  fillOpacity = 0.7,
+                  #smoothFactor = 0.9,
+                  fillColor = ~pal(testData),
+                  weight = 2,
+                  opacity = 1,
+                  dashArray = 3,
+                  color = "black",
                   highlightOptions = highlightOptions(
                     weight = 5,
-                    color = "#ADD8E6",
+                    color = "#666",
+                    dashArray = "",
                     fillOpacity = 0.7,
                     bringToFront = TRUE),
-                  fillColor = "#ADD8E6",
-                  label = ~paste0(area_num_1, ": ", community)) %>%
+                  label = labels,
+                  labelOptions = labelOptions(
+                    style = list("font-weight" = "normal", padding = "3px 8px"),
+                    textSize = "15px",
+                    direction = "auto"
+                  )
+                  # fillColor = "#ADD8E6"#,
+                  #label = ~paste0(area_num_1, ": ", community)
+      ) %>%
+      addLegend(pal = pal, values = ~testData, opacity = .8, title = "Rides", position = "bottomright") %>%
       addTiles() %>%  
       setView(lng =-87.658323, lat = 41.859036, zoom = 10) %>%
       addProviderTiles("Esri.WorldGrayCanvas")
