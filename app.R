@@ -129,10 +129,10 @@ server <- function(input, output, session) {
   toAndFromReactive <- reactive({
     # if "All" taxi companies are selected
     if(input$company == "All") { 
-        print("here")
-        vals <- data.frame(code=1:77, rides=count(zeta$pickup)$freq + count(zeta$dropoff)$freq)
+        # print("here")
+        vals <- data.frame(code=count(zeta$pickup)$x, rides=count(zeta$pickup)$freq + count(zeta$dropoff)$freq)
         vals$percents <- round((vals$rides / sum(vals$rides)) * 100, 3)
-        print("here too")
+        # print("here too")
         vals <- merge(vals, communities, by="code")
         vals <- vals[order(vals$name), ]
         
@@ -141,10 +141,21 @@ server <- function(input, output, session) {
       
       zeta_subset <- subset(zeta, zeta$company == companies[companies$company == input$company, ]$company_number)
       # print(head(zeta_subset))
-      vals <- data.frame(code=1:77, rides=count(zeta_subset$pickup)$freq + count(zeta_subset$dropoff)$freq)
+      from <- count(zeta_subset$pickup)
+      to <- count(zeta_subset$dropoff)
+      
+      # cast <- data.frame(x=1:77, freq=0)
+      z <- merge(to, from, by="x", all.x = TRUE)
+      z[is.na(z)] <- 0
+      
+      z$freq2 <- z$freq.x + z$freq.y
+      print(z)
+      #print(to)
+      
+      vals <- data.frame(code=z$x, rides=z$freq2)
       # print(head(zeta_subset))
       vals$percents <- round((vals$rides / sum(vals$rides)) * 100, 3)
-      merge(vals, communities, by="code")
+      vals <- merge(vals, communities, by="code")
       vals <- vals[order(vals$name), ]
       
       vals
@@ -198,7 +209,6 @@ server <- function(input, output, session) {
  
   output$toAndFrom  <- renderPlot({
     mydata <- toAndFromReactive()
-    print(mydata)
     ggplot(data = mydata, aes(x = name, y = percents)) + geom_bar(stat = "identity", fill = "#098CF9") + ggtitle("% Rides to/from each community") + scale_y_continuous(labels = scales::comma) + labs(x="Community", y = "% of Rides") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))  })
   
   ############## TABLES 
