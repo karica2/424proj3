@@ -12,25 +12,24 @@ library(scales)
 library(leaflet)
 library(data.table)
 library(plyr)
-# load in our data
-start = proc.time()
+library(rgdal)
 
+# load in our data
+
+start = proc.time()
 files = list.files("datachunks/", ".csv", full.names = TRUE)
 zeta <- do.call(rbind, lapply(files, function(x) {
   fread(file = x, sep = ",", header = TRUE, quote = FALSE) }))
-
-zeta$hour <- substr(zeta$timestamp, 8, 12)
-zeta$date <- substr(zeta$timestamp, 2, 6)
-zeta$month <- strtoi(substr(zeta$date, 0, 2), base = 10L)
-zeta$day <- strtoi(substr(zeta$date, 4, 5))
-
-
 end = proc.time() - start
+
+comm_areas <- rgdal::readOGR("bound.geojson")
+
+date_breaks <- unique(zeta$date)[1:365*14]
+date_breaks <- date_breaks[!is.na(date_breaks)]
+
 
 print(end)
 # by day of year
-date_breaks <- unique(zeta$date)[1:365*14]
-date_breaks <- date_breaks[!is.na(date_breaks)]
 
 monthNums <- seq(1, 12)
 months <- month.abb[monthNums]
@@ -38,26 +37,22 @@ months <- month.abb[monthNums]
 weekdayNums <- seq(1, 7)
 weekdayNums <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 
-zeta$minutes <- round(zeta$seconds / 60)
-
-# ggplot(data=count(zeta$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour)) + labs(x="Hour", y = "Rides")
-
 hrs_24 <- paste(1:24, ":00", sep = "")
-# ggplot(data=count(zeta$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour), labels = hrs_24) + labs(x="Hour", y = "Rides")
 companies <- read.csv("taxi_companies.csv")
 companies$X <- NULL
 companies <- companies[order(companies$company), ]
 
 communities <- read.csv("communities.csv")
-
+# make separate reactive for % of rides in a community area 
+# copy/paste the other reactive code
 
 ui <- dashboardPage(
   dashboardHeader(title = "Chicago Taxi Rides "),
   dashboardSidebar(disable = TRUE),
-  dashboardBody("Taxi data tracker",
+  dashboardBody(
                 title = "Chicagoland Area", 
-                         column(2, fluidRow(box(height = "40%")),
-                                   fluidRow(box(height = "40%",
+                         column(1, fluidRow(box(height = "40%")),
+                                   fluidRow(box(width = 12, height = "40%",
                                                 background = "black",
                                                 radioButtons(label = "See data in Mi or Km?", inputId = "kmOrMi", choices = c("Mi", "Km"), selected = "Mi"),
                                                 radioButtons(label = "See data in 12HR or 24HR?", inputId  = "hourType", choices = c("12HR", "24HR"), selected = "12HR"),
@@ -66,11 +61,12 @@ ui <- dashboardPage(
                                                     )
                                             )
                                 ),
-                         column(10, 
+                         column(8, 
                                 fluidRow(
                                   
-                                  column(8, box(column(10, plotOutput("basicDay")), column(2, dataTableOutput("basicDayTable")), background="blue", width = 12)),
-                                  column(4, box(column(10, plotOutput("basicMonth")), column(2, dataTableOutput("basicMonthTable")), background = "blue", width = 12))
+                                  column(5, column(10, plotOutput("basicDay", height = "35vh")), column(2, dataTableOutput("basicDayTable", height = "35vh"))),
+                                  column(5, column(10, plotOutput("toAndFrom", height = "35vh")), column(2, dataTableOutput("toAndFromTable"))),
+                                  column(2, column(10, plotOutput("basicMonth", height = "35vh")), column(2, dataTableOutput("basicMonthTable", height = "35vh")))
                                   
                                   ),
                                 fluidRow(
@@ -78,29 +74,18 @@ ui <- dashboardPage(
                                   column(3, box(conditionalPanel(condition = "input.hourType == '12HR'", column(10, plotOutput("basicHour")), column(2, dataTableOutput("basicHourTable"))),
                                          conditionalPanel(condition = "input.hourType == '24HR'", column(10, plotOutput("basicHour24")), column(2, dataTableOutput("basic24HourTable"))), background = "blue", width = 12)
                                          ),
-                                  column(3, box(conditionalPanel(condition = "input.kmOrMi == 'Mi'", plotOutput("basicMileage")),
-                                         conditionalPanel(condition = "input.kmOrMi == 'Km'", plotOutput("basicKM")), background = "blue", width = 12)
+                                  column(3, box(conditionalPanel(condition = "input.kmOrMi == 'Mi'", column(10, plotOutput("basicMileage")), column(2, dataTableOutput("basicMileageTable"))),
+                                         conditionalPanel(condition = "input.kmOrMi == 'Km'", column(10, plotOutput("basicKM")), column(2, dataTableOutput("basicKMTable"))), background = "blue", width = 12)
                                   ),
-                                  column(3, box(plotOutput("basicMinutes"), background = "blue", width = 12))
+                                  column(3, box(column(10, plotOutput("basicMinutes")), column(2, dataTableOutput("basicMinsTable")), background = "blue", width = 12))
                                 )
                                 ),
+                          column(3, box(width = 12, leafletOutput("map", height="85vh")))
                           
                 ))
 server <- function(input, output, session) {
   
   dataReactive <- reactive({
-    # if both of them are default 
-    # if(input$company == "All") { 
-    #   
-    #   zeta
-    # }
-    # 
-    # else
-    #   { 
-    #     subset(zeta, zeta$company == companies[companies$company == input$company, ]$company_number)  
-    #   }
-    # case where company is all 
-    # case where community is all 
     
     if(input$comm == "ALL" & input$company == "All") { 
       
@@ -124,6 +109,33 @@ server <- function(input, output, session) {
       subset(zeta, (zeta$pickup == communities[communities$name == input$comm, ]$code | zeta$dropoff == communities[communities$name == input$comm, ]$code) & zeta$company == companies[companies$company == input$company, ]$company_number)
       
     }
+    
+  })
+  
+  toAndFromReactive <- reactive({
+    # if "All" taxi companies are selected
+    if(input$company == "All") { 
+        print("here")
+        vals <- data.frame(code=1:77, rides=count(zeta$pickup)$freq + count(zeta$dropoff)$freq)
+        vals$percents <- round((vals$rides / sum(vals$rides)) * 100, 3)
+        print("here too")
+        vals <- merge(vals, communities, by="code")
+        vals <- vals[order(vals$name), ]
+        
+        vals
+    } else { 
+      
+      zeta_subset <- subset(zeta, zeta$company == companies[companies$company == input$company, ]$company_number)
+      # print(head(zeta_subset))
+      vals <- data.frame(code=1:77, rides=count(zeta_subset$pickup)$freq + count(zeta_subset$dropoff)$freq)
+      # print(head(zeta_subset))
+      vals$percents <- round((vals$rides / sum(vals$rides)) * 100, 3)
+      merge(vals, communities, by="code")
+      vals <- vals[order(vals$name), ]
+      
+      vals
+      }
+    
     
   })
   
@@ -170,8 +182,15 @@ server <- function(input, output, session) {
     ggplot(count(mins), aes(x = x, y = freq)) + geom_bar(stat = "identity", fill="#098CF9") + scale_y_continuous(labels = scales::comma) + ggtitle("Rides By Minutes") + labs(x = "Minutes", y = "Rides")
       })
  
+  output$toAndFrom  <- renderPlot({
+    mydata <- toAndFromReactive()
+    print(mydata)
+    ggplot(data = mydata, aes(x = name, y = percents)) + geom_bar(stat = "identity", fill = "#098CF9") + ggtitle("% Rides to/from each community") + scale_y_continuous(labels = scales::comma) + labs(x="Community", y = "% of Rides") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))  })
+  
+  ############## TABLES 
   output$basicDayTable <- DT::renderDataTable(DT::datatable({
-
+    
+    
     mydata <- dataReactive()
     countedMetric <- count(mydata$date)
     table_df <- data.frame(Day=countedMetric$x, Rides=countedMetric$freq)
@@ -211,7 +230,7 @@ server <- function(input, output, session) {
     
     mydata <- dataReactive()
     countedMetric <- count(mydata$hour)
-    table_df <- data.frame(Hour24=countedMetric$x, Rides=countedMetric$freq)
+    table_df <- data.frame(Hour24=hrs_24, Rides=countedMetric$freq)
     data <- table_df
     data
   }, options = list(searching = FALSE, pageLength = 10, lengthMenu = c(7, 10, 20)), rownames = FALSE))
@@ -219,7 +238,8 @@ server <- function(input, output, session) {
   output$basicMileageTable <- DT::renderDataTable(DT::datatable({
     
     mydata <- dataReactive()
-    countedMetric <- count(mydata$miles)
+    MI <- cut(mydata$miles, breaks = 10)
+    countedMetric <- count(MI)
     table_df <- data.frame(Mileage=countedMetric$x, Rides=countedMetric$freq)
     data <- table_df
     data
@@ -228,11 +248,55 @@ server <- function(input, output, session) {
   output$basicKMTable <- DT::renderDataTable(DT::datatable({
     
     mydata <- dataReactive()
-    countedMetric <- count(mydata$miles)
-    table_df <- data.frame(Mileage=countedMetric$x, Rides=countedMetric$freq)
+    mydata$KM <- mydata$miles * 1.6
+    KM <- cut(mydata$KM, breaks = 10)
+    countedMetric <- count(KM)
+    table_df <- data.frame(Kilometers=countedMetric$x, Rides=countedMetric$freq)
     data <- table_df
     data
   }, options = list(searching = FALSE, pageLength = 10, lengthMenu = c(7, 10, 20)), rownames = FALSE))
+  
+  output$basicMinsTable <- DT::renderDataTable(DT::datatable({
+    
+    mydata <- dataReactive()
+    
+    mins <- cut(mydata$minutes, breaks = 10)
+    countedMetric <- count(mins)
+    table_df <- data.frame(Minutes=countedMetric$x, Rides=countedMetric$freq)
+    data <- table_df
+    data
+  }, options = list(searching = FALSE, pageLength = 10, lengthMenu = c(7, 10, 20)), rownames = FALSE))
+  
+  output$toAndFromTable <- DT::renderDataTable(DT::datatable({
+    
+    mydata <- toAndFromReactive()
+    
+    table_df <- data.frame(Community=mydata$name, Percent=mydata$percents)
+    data <- table_df
+    data
+  }, options = list(searching = FALSE, pageLength = 10, lengthMenu = c(7, 10, 20)), rownames = FALSE))  
+  
+  output$map <- renderLeaflet({
+    #including dasharray in the highlight options breaks the map
+    
+    leaflet(comm_areas) %>%
+      addTiles() %>%
+      addPolygons(stroke = TRUE,
+                  fillOpacity = 0.1,
+                  smoothFactor = 0.5,
+                  highlightOptions = highlightOptions(
+                    weight = 5,
+                    color = "#ADD8E6",
+                    fillOpacity = 0.7,
+                    bringToFront = TRUE),
+                  fillColor = "#ADD8E6",
+                  label = ~paste0(area_num_1, ": ", community)) %>%
+      addTiles() %>%  
+      setView(lng =-87.658323, lat = 41.859036, zoom = 10) %>%
+      addProviderTiles("Esri.WorldGrayCanvas")
+    
+    
+  })
 }
 shinyApp(ui, server)
 
