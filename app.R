@@ -309,6 +309,7 @@ server <- function(input, output, session) {
                   fillOpacity = 0.7,
                   #smoothFactor = 0.9,
                   fillColor = ~pal(testData),
+                  layerId = ~area_num_1,
                   weight = 2,
                   opacity = 1,
                   dashArray = 3,
@@ -334,6 +335,14 @@ server <- function(input, output, session) {
       addProviderTiles("Esri.WorldGrayCanvas")
     
     
+  })
+  
+  observeEvent(input$map_shape_click, {
+    p <- input$map_shape_click$id
+    print(p)
+    selected <- toAndFromReactive()
+    selected <- selected[selected$code == p,]
+    View(selected)
   })
 }
 shinyApp(ui, server)
