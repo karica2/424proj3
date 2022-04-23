@@ -23,13 +23,12 @@ zeta <- do.call(rbind, lapply(files, function(x) {
 end = proc.time() - start
 
 
-comm_areas <- rgdal::readOGR("bound.geojson")
+#comm_areas <- rgdal::readOGR("bound.geojson")
 # kevin local code line
-#comm_areas <- rgdal::readOGR("Boundaries - Community Areas (current).geojson") 
+comm_areas <- rgdal::readOGR("Boundaries - Community Areas (current).geojson") 
 comm_areas$testData <- as.integer(comm_areas$area_num_1)
 
-bins <- c(0, 10, 20, 30, 40, 50, 60, 70, Inf)
-pal <- colorBin("YlOrRd", domain = comm_areas$testData, bins = bins)
+bins <- c(0, 0.5, 1, 5, 10, 20, 30, 40, Inf)
 
 labels <- sprintf(
   "<strong>%s</strong><br/>%s",
@@ -180,7 +179,7 @@ server <- function(input, output, session) {
     z[is.na(z)] <- 0
     
     z$freq2 <- z$freq.x + z$freq.y
-    print(z)
+    #print(z)
     # fix this
     
     ggplot(data=z, aes(x = x, y=freq2)) + geom_bar(stat="identity", fill = "#098CF9") + ggtitle("Daily Rides") + labs(x = "Day", y = "Rides") + scale_x_discrete(breaks = date_breaks)
@@ -314,16 +313,54 @@ server <- function(input, output, session) {
     data
   }, options = list(searching = FALSE, pageLength = 10, lengthMenu = c(7, 10, 20)), rownames = FALSE))  
   
+
+  colorpal <- reactive({
+    #selected <- toAndFromReactive()
+    #colorNumeric(input$colors, quakes$mag)
+    colorNumeric(domain = input$percents, palette = "YlOrRd")
+  })
+  
   output$map <- renderLeaflet({
     #including dasharray in the highlight options breaks the map
+    selected <- toAndFromReactive()
+    #View(selected)
+    
+    # unsure about init coloring
+    pal <- colorpal()
     
     leaflet(comm_areas) %>%
       addTiles() %>%
+      
+      addLegend(pal = pal, values = selected$percents, opacity = .8, title = "Rides", position = "bottomright") %>%
+      addTiles() %>%  
+      setView(lng =-87.658323, lat = 41.859036, zoom = 10) %>%
+      addProviderTiles("Esri.WorldGrayCanvas")
+  })
+  
+  observe({
+    
+    pal <- colorpal()
+    
+    selected <-toAndFromReactive()
+    names(selected)[names(selected)=="code"] <- "testData"
+    print("In Observe")
+    temp <- comm_areas
+    
+    palette <- colorNumeric(palette = "YlOrRd", domain = selected$percents)
+    selected$color <- palette(selected$percents)
+    #print("SELECTED")
+    print(selected)
+    
+    temp@data <- merge(temp@data, selected, by = "testData",all.x = TRUE)
+    print(temp@data)
+    
+    leafletProxy("map", data = temp) %>%
+      clearShapes() %>%
       addPolygons(stroke = TRUE,
                   fillOpacity = 0.7,
                   #smoothFactor = 0.9,
-                  fillColor = ~pal(testData),
-                  layerId = ~area_num_1,
+                  fillColor = temp@data$color,
+                  layerId = temp@data$area_num_1,
                   weight = 2,
                   opacity = 1,
                   dashArray = 3,
@@ -340,16 +377,11 @@ server <- function(input, output, session) {
                     textSize = "15px",
                     direction = "auto"
                   )
-                  # fillColor = "#ADD8E6"#,
-                  #label = ~paste0(area_num_1, ": ", community)
-      ) %>%
-      addLegend(pal = pal, values = ~testData, opacity = .8, title = "Rides", position = "bottomright") %>%
-      addTiles() %>%  
-      setView(lng =-87.658323, lat = 41.859036, zoom = 10) %>%
-      addProviderTiles("Esri.WorldGrayCanvas")
-    
-    
+                  
+      )
+      
   })
+  
   
   observeEvent(input$map_shape_click, {
     p <- input$map_shape_click$id
@@ -357,6 +389,7 @@ server <- function(input, output, session) {
     selected <- toAndFromReactive()
     selectedComm <- selected[selected$code == p, ]$name
     updateSelectizeInput(session = session, inputId = "comm", selected = selectedComm)
+    #updateSelectizeInput(session = session, inputId = "map", selected = selectedComm)
   })
 }
 shinyApp(ui, server)
