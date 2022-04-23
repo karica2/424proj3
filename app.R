@@ -38,7 +38,8 @@ labels <- sprintf(
 
 
 
-date_breaks <- unique(zeta$date)[1:365*14]
+dates <- unique(zeta$date)
+date_breaks <- dates[1:365*14]
 date_breaks <- date_breaks[!is.na(date_breaks)]
 
 
@@ -65,8 +66,12 @@ ui <- dashboardPage(
   dashboardSidebar(disable = TRUE),
   dashboardBody(
                 title = "Chicagoland Area", 
-                         column(1, fluidRow(box(height = "40%")),
-                                   fluidRow(box(width = 12, height = "40%",
+                         column(1, fluidRow(box("A visualization made by Kenan Arica and Kevin Elliott for CS 424. The interface shows Chicago Taxi rides in 2019 separated by Taxi companies and Community areas. Data taken from the City of Chicago data portal. ", 
+                                                tags$a(href="https://data.cityofchicago.org/Transportation/Taxi-Trips-2019/h4cq-z3dy", "Taxi Rides Dataset"), 
+                                                tags$a(href="https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6", "Community Areas dataset"), 
+                                                
+                                                height = "30vh", width = 12)),
+                                   fluidRow(box(width = 12, height = "40vh",
                                                 background = "black",
                                                 radioButtons(label = "See data in Mi or Km?", inputId = "kmOrMi", choices = c("Mi", "Km"), selected = "Mi"),
                                                 radioButtons(label = "See data in 12HR or 24HR?", inputId  = "hourType", choices = c("12HR", "24HR"), selected = "12HR"),
@@ -84,14 +89,14 @@ ui <- dashboardPage(
                                   
                                   ),
                                 fluidRow(
-                                  column(3, box(column(10, plotOutput("basicWeek")), column(2, dataTableOutput("basicWeekTable")), background = "blue", width = 12)),
-                                  column(3, box(conditionalPanel(condition = "input.hourType == '12HR'", column(10, plotOutput("basicHour")), column(2, dataTableOutput("basicHourTable"))),
-                                         conditionalPanel(condition = "input.hourType == '24HR'", column(10, plotOutput("basicHour24")), column(2, dataTableOutput("basic24HourTable"))), background = "blue", width = 12)
+                                  column(3, column(10, plotOutput("basicWeek")), column(2, dataTableOutput("basicWeekTable"))),
+                                  column(3, conditionalPanel(condition = "input.hourType == '12HR'", column(10, plotOutput("basicHour")), column(2, dataTableOutput("basicHourTable"))),
+                                         conditionalPanel(condition = "input.hourType == '24HR'", column(10, plotOutput("basicHour24")), column(2, dataTableOutput("basic24HourTable")))
                                          ),
-                                  column(3, box(conditionalPanel(condition = "input.kmOrMi == 'Mi'", column(10, plotOutput("basicMileage")), column(2, dataTableOutput("basicMileageTable"))),
-                                         conditionalPanel(condition = "input.kmOrMi == 'Km'", column(10, plotOutput("basicKM")), column(2, dataTableOutput("basicKMTable"))), background = "blue", width = 12)
+                                  column(3, conditionalPanel(condition = "input.kmOrMi == 'Mi'", column(10, plotOutput("basicMileage")), column(2, dataTableOutput("basicMileageTable"))),
+                                         conditionalPanel(condition = "input.kmOrMi == 'Km'", column(10, plotOutput("basicKM")), column(2, dataTableOutput("basicKMTable")))
                                   ),
-                                  column(3, box(column(10, plotOutput("basicMinutes")), column(2, dataTableOutput("basicMinsTable")), background = "blue", width = 12))
+                                  column(3, column(10, plotOutput("basicMinutes")), column(2, dataTableOutput("basicMinsTable")))
                                 )
                                 ),
                           column(3, box(width = 12, leafletOutput("map", height="85vh")))
@@ -149,7 +154,7 @@ server <- function(input, output, session) {
       z[is.na(z)] <- 0
       
       z$freq2 <- z$freq.x + z$freq.y
-      print(z)
+      # print(z)
       #print(to)
       
       vals <- data.frame(code=z$x, rides=z$freq2)
@@ -169,7 +174,16 @@ server <- function(input, output, session) {
   output$basicDay <- renderPlot({
     
     mydata <- dataReactive()
-    ggplot(data=count(mydata$date), aes(x = x, y=freq)) + geom_bar(stat="identity", fill = "#098CF9") + ggtitle("Daily Rides") + labs(x = "Day", y = "Rides") + scale_x_discrete(breaks = date_breaks)
+    days <- count(mydata$date)
+    daysCast <- data.frame(x=dates, freq=0)
+    z <- merge(daysCast, days, by="x", all.x = TRUE)
+    z[is.na(z)] <- 0
+    
+    z$freq2 <- z$freq.x + z$freq.y
+    print(z)
+    # fix this
+    
+    ggplot(data=z, aes(x = x, y=freq2)) + geom_bar(stat="identity", fill = "#098CF9") + ggtitle("Daily Rides") + labs(x = "Day", y = "Rides") + scale_x_discrete(breaks = date_breaks)
   })
   output$basicMonth <- renderPlot({
     mydata <- dataReactive()
@@ -181,12 +195,12 @@ server <- function(input, output, session) {
   })
   output$basicHour <- renderPlot({
     mydata <- dataReactive()
-    ggplot(data=count(mydata$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour)) + labs(x="Hour", y = "Rides")
+    ggplot(data=count(mydata$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour)) + labs(x="Hour", y = "Rides") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
   })
   output$basicHour24  <- renderPlot({
     mydata <- dataReactive()
     hrs_24 <- paste(1:24, ":00", sep = "")
-    ggplot(data=count(mydata$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides (24HR)") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour), labels = hrs_24) + labs(x="Hour", y = "Rides")
+    ggplot(data=count(mydata$hour), aes(x=x, y=freq)) + geom_bar(stat = "identity", fill="#098CF9") + ggtitle("Hourly Rides (24HR)") + scale_y_continuous(labels = scales::comma) + scale_x_discrete("Hour", limits = unique(zeta$hour), labels = hrs_24) + labs(x="Hour", y = "Rides") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
   })
   
   output$basicMileage <- renderPlot({
@@ -341,8 +355,8 @@ server <- function(input, output, session) {
     p <- input$map_shape_click$id
     print(p)
     selected <- toAndFromReactive()
-    selected <- selected[selected$code == p,]
-    View(selected)
+    selectedComm <- selected[selected$code == p, ]$name
+    updateSelectizeInput(session = session, inputId = "comm", selected = selectedComm)
   })
 }
 shinyApp(ui, server)
